@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto_broker
+    command: mosquitto
+    ports:
+      - "1883:1883"
+    restart: unless-stopped
+
+  dash_app:
+    build: ./app
+    container_name: dash_app
+    ports:
+      - "8050:8050"
+    depends_on:
+      - mosquitto
+    volumes:
+      - ./app:/app
+    restart: unless-stopped
