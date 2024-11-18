@@ -13,7 +13,7 @@ client = paho.Client()
 client.on_message = onMessage
 
 
-if client.connect('172.19.0.2', 1883, 60) != 0:
+if client.connect('34.228.22.195', 1883, 60) != 0:
     print('Couldn\'t connect to MQTT Broker!')
     sys.exit(-1)
 

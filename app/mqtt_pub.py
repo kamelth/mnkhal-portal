@@ -1,22 +1,25 @@
-# Simple mqtt Publisher
+import paho.mqtt.client as mqtt
 
-import paho.mqtt.client as paho
-import sys
-import json
-import time
+# EC2 public IP and MQTT broker port (1883)
+broker = "34.228.22.195"
+port = 1883  # Default MQTT port
 
-client = paho.Client()
+# Define the topic
+topic = "test/sensors"
 
-if client.connect('localhost', 1883, 60) != 0:
-    print('Couldn\'t connect to MQTT Broker!')
-    sys.exit(-1)
+# Define the message
+message = "Hello from Python!"
 
-for i in range(30):
-    payload = {
-        "weight": i*5,
-        "vibration": i*10
-    }
-    client.publish('test/sensors', json.dumps(payload), 0)
-    time.sleep(10)
+# Create a client instance
+client = mqtt.Client()
 
+# Connect to the broker
+client.connect(broker, port, 60)
+
+# Publish a message to the topic
+client.publish(topic, message)
+
+# Disconnect from the broker
 client.disconnect()
+
+print(f"Message '{message}' published to topic '{topic}'")

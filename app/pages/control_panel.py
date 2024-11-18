@@ -1,55 +1,15 @@
 import dash
 import time
 import pathlib
+import os
 import random
-import dash_core_components as dcc
-import dash_html_components as html
+
+import pandas as pd
+from dash import dcc
+from dash import html
 from dash.dependencies import State, Input, Output
 import dash_daq as daq
-import paho.mqtt.client as paho
-import sys
-import json
-import threading
-import socket
 
-
-mosquitto_ip = socket.gethostbyname('mosquitto')
-print(f"Mosquitto Broker IP Address: {mosquitto_ip}")
-
-current_weight = 0
-current_vibration = 0
-
-def onMessage(client, userData, msg):
-    global current_weight, current_vibration
-
-    data = json.loads(msg.payload.decode())
-    current_weight = data.get('weight', 0)
-    current_vibration = data.get('vibration', 0)
-    print(f"Weight: {current_weight}, Vibration: {current_vibration}")
-
-
-def mqtt_client_thread():
-    client = paho.Client()
-    client.on_message = onMessage
-
-    if client.connect(mosquitto_ip, 1883, 60) != 0:
-        print('Couldn\'t connect to MQTT Broker!')
-        sys.exit(-1)
-
-    client.subscribe('test/sensors')
-
-    try:
-        print('MQTT Client Running...')
-        client.loop_forever()  # This will run in the background
-    except Exception as e:
-        print(f'Disconnecting from Broker: {e}')
-        client.disconnect()
-
-
-# Create and start the MQTT thread
-mqtt_thread = threading.Thread(target=mqtt_client_thread)
-mqtt_thread.daemon = True  # Set as a daemon thread so it exits with the main program
-mqtt_thread.start()
 
 dash.register_page(__name__, path="/", name="Control Panel 🎛️")
 
@@ -57,6 +17,14 @@ dash.register_page(__name__, path="/", name="Control Panel 🎛️")
 start_time = time.time() - random.randint(0, 172800)
 running_seconds = 0
 
+current_vibration = random.randint(30, 35)
+current_weight = 0
+
+# Mapbox
+MAPBOX_ACCESS_TOKEN = (
+    "pk.eyJ1IjoicGxvdGx5bWFwYm94IiwiYSI6ImNrOWJqb2F4djBnMjEzbG50amg0dnJieG4ifQ.Zme1-Uzoi75IaFbieBDl3A"
+)
+MAPBOX_STYLE = "mapbox://styles/plotlymapbox/cjyivwt3i014a1dpejm5r7dwr"
 
 # Dash_DAQ elements
 
@@ -210,6 +178,126 @@ capacity = html.Div(
     n_clicks=0,
 )
 
+elevation = html.Div(
+    id="control-panel-elevation",
+    children=[
+        daq.Tank(
+            id="control-panel-elevation-component",
+            label="Elevation",
+            min=0,
+            max=1000,
+            value=650,
+            units="kilometers",
+            showCurrentValue=True,
+            color="#303030",
+        )
+    ],
+    n_clicks=0,
+)
+
+temperature = html.Div(
+    id="control-panel-temperature",
+    children=[
+        daq.Tank(
+            id="control-panel-temperature-component",
+            label="Temperature",
+            min=0,
+            max=500,
+            value=290,
+            units="Kelvin",
+            showCurrentValue=True,
+            color="#303030",
+        )
+    ],
+    n_clicks=0,
+)
+
+fuel_indicator = html.Div(
+    id="control-panel-fuel",
+    children=[
+        daq.GraduatedBar(
+            id="control-panel-fuel-component",
+            label="Fuel Level",
+            min=0,
+            max=100,
+            value=76,
+            step=1,
+            showCurrentValue=True,
+            color="#fec036",
+        )
+    ],
+    n_clicks=0,
+)
+
+battery_indicator = html.Div(
+    id="control-panel-battery",
+    children=[
+        daq.GraduatedBar(
+            id="control-panel-battery-component",
+            label="Battery-Level",
+            min=0,
+            max=100,
+            value=85,
+            step=1,
+            showCurrentValue=True,
+            color="#fec036",
+        )
+    ],
+    n_clicks=0,
+)
+
+longitude = html.Div(
+    id="control-panel-longitude",
+    children=[
+        daq.LEDDisplay(
+            id="control-panel-longitude-component",
+            value="0000.0000",
+            label="Longitude",
+            size=24,
+            color="#fec036",
+            style={"color": "#black"},
+            backgroundColor="#2b2b2b",
+        )
+    ],
+    n_clicks=0,
+)
+
+latitude = html.Div(
+    id="control-panel-latitude",
+    children=[
+        daq.LEDDisplay(
+            id="control-panel-latitude-component",
+            value="0050.9789",
+            label="Latitude",
+            size=24,
+            color="#fec036",
+            style={"color": "#black"},
+            backgroundColor="#2b2b2b",
+        )
+    ],
+    n_clicks=0,
+)
+
+solar_panel_0 = daq.Indicator(
+    className="panel-lower-indicator",
+    id="control-panel-solar-panel-0",
+    label="Solar-Panel-0",
+    labelPosition="bottom",
+    value=True,
+    color="#fec036",
+    style={"color": "#black"},
+)
+
+solar_panel_1 = daq.Indicator(
+    className="panel-lower-indicator",
+    id="control-panel-solar-panel-1",
+    label="Solar-Panel-1",
+    labelPosition="bottom",
+    value=True,
+    color="#fec036",
+    style={"color": "#black"},
+)
+
 camera = daq.Indicator(
     className="panel-lower-indicator",
     id="control-panel-camera",
@@ -220,6 +308,15 @@ camera = daq.Indicator(
     style={"color": "#black"},
 )
 
+thrusters = daq.Indicator(
+    className="panel-lower-indicator",
+    id="control-panel-thrusters",
+    label="Thrusters",
+    labelPosition="bottom",
+    value=True,
+    color="#fec036",
+    style={"color": "#black"},
+)
 
 motor = daq.Indicator(
     className="panel-lower-indicator",
@@ -239,6 +336,22 @@ communication_signal = daq.Indicator(
     value=False,
     color="#fec036",
     style={"color": "#red"},
+)
+
+map_toggle = daq.ToggleSwitch(
+    id="control-panel-toggle-map",
+    value=True,
+    label=["Hide path", "Show path"],
+    color="#ffe102",
+    style={"color": "#black"},
+)
+
+minute_toggle = daq.ToggleSwitch(
+    id="control-panel-toggle-minute",
+    value=True,
+    label=["Past Hour", "Past Minute"],
+    color="#ffe102",
+    style={"color": "#black"},
 )
 
 # Side panel
@@ -270,7 +383,98 @@ side_panel_layout = html.Div(
     ],
 )
 
+
+# Helper to straighten lines on the map
+def flatten_path(xy1, xy2):
+    diff_rate = (xy2 - xy1) / 100
+    res_list = []
+    for i in range(100):
+        res_list.append(xy1 + i * diff_rate)
+    return res_list
+
+
+map_data = [
+    {
+        "type": "scattermapbox",
+        "lat": [0],
+        "lon": [0],
+        "hoverinfo": "text+lon+lat",
+        "text": "Satellite Path",
+        "mode": "lines",
+        "line": {"width": 2, "color": "#707070"},
+    },
+    {
+        "type": "scattermapbox",
+        "lat": [0],
+        "lon": [0],
+        "hoverinfo": "text+lon+lat",
+        "text": "Current Position",
+        "mode": "markers",
+        "marker": {"size": 10, "color": "#fec036"},
+    },
+]
+
+map_layout = {
+    "mapbox": {
+        "accesstoken": MAPBOX_ACCESS_TOKEN,
+        "style": MAPBOX_STYLE,
+        "center": {"lat": 45},
+    },
+    "showlegend": False,
+    "autosize": True,
+    "paper_bgcolor": "#1e1e1e",
+    "plot_bgcolor": "#1e1e1e",
+    "margin": {"t": 0, "r": 0, "b": 0, "l": 0},
+}
+
+map_graph = html.Div(
+    id="world-map-wrapper",
+    children=[
+        map_toggle,
+        dcc.Graph(
+            id="world-map",
+            figure={"data": map_data, "layout": map_layout},
+            config={"displayModeBar": False, "scrollZoom": False},
+        ),
+    ],
+)
+
 # Histogram
+
+histogram = html.Div(
+    id="histogram-container",
+    children=[
+        html.Div(
+            id="histogram-header",
+            children=[
+                html.H1(id="histogram-title", children=["Select A Property To Display"]),
+                minute_toggle,
+            ],
+        ),
+        dcc.Graph(
+            id="histogram-graph",
+            figure={
+                "data": [
+                    {
+                        "x": [i for i in range(60)],
+                        "y": [i for i in range(60)],
+                        "type": "scatter",
+                        "marker": {"color": "#fec036"},
+                    }
+                ],
+                "layout": {
+                    "margin": {"t": 30, "r": 35, "b": 40, "l": 50},
+                    "xaxis": {"dtick": 5, "gridcolor": "#636363", "showline": False},
+                    "yaxis": {"showgrid": False},
+                    "plot_bgcolor": "#2b2b2b",
+                    "paper_bgcolor": "#2b2b2b",
+                    "font": {"color": "gray"},
+                },
+            },
+            config={"displayModeBar": False},
+        ),
+    ],
+)
 
 indecators = html.Div(
         id="panel-lower-1",
@@ -402,6 +606,59 @@ main_panel_layout = html.Div(
         # map_graph,
         first_row,
         second_row,
+        # html.Div(
+        #     id="panel",
+        #     children=[
+        #         # histogram,
+        #         html.Div(
+        #             id="panel-lower",
+        #             children=[
+        #                 html.Div(
+        #                     id="panel-lower-0",
+        #                     children=[elevation, temperature, speed],
+        #                 ),
+        #                 mnkhal,
+        #                 html.Div(
+        #                     id="panel-lower-1",
+        #                     children=[
+        #                         html.Div(
+        #                             id="panel-lower-led-displays",
+        #                             children=[latitude, longitude],
+        #                         ),
+        #                         html.Div(
+        #                             id="panel-lower-indicators",
+        #                             children=[
+        #                                 html.Div(
+        #                                     id="panel-lower-indicators-0",
+        #                                     children=[solar_panel_0, thrusters],
+        #                                 ),
+        #                                 html.Div(
+        #                                     id="panel-lower-indicators-1",
+        #                                     children=[solar_panel_1, motor],
+        #                                 ),
+        #                                 html.Div(
+        #                                     id="panel-lower-indicators-2",
+        #                                     children=[camera, communication_signal],
+        #                                 ),
+        #                             ],
+        #                         ),
+        #                         html.Div(
+        #                             id="panel-lower-graduated-bars",
+        #                             children=[fuel_indicator, battery_indicator],
+        #                         ),
+        #                     ],
+        #                 ),
+        #             ],
+        #             style={
+        #                 "display": "flex",
+        #                 "justify-content": "center",
+        #                 "align-items": "center",
+        #                 "height": "100%",  # Ensure the Div takes up the available space if needed
+        #                 "text-align": "center",
+        #             },
+        #         ),
+        #     ],
+        # ),
     ],
     style={
         'display': 'flex',
@@ -418,16 +675,144 @@ main_panel_layout = html.Div(
 # Pandas
 APP_PATH = str(pathlib.Path(__file__).parent.resolve())
 
+# Satellite H45-K1 data
+df_non_gps_h_0 = pd.read_csv(os.path.join(APP_PATH, os.path.join("../data", "non_gps_data_h_0.csv")))
+df_non_gps_m_0 = pd.read_csv(os.path.join(APP_PATH, os.path.join("../data", "non_gps_data_m_0.csv")))
+df_gps_m_0 = pd.read_csv(os.path.join(APP_PATH, os.path.join("../data", "gps_data_m_0.csv")))
+df_gps_h_0 = pd.read_csv(os.path.join(APP_PATH, os.path.join("../data", "gps_data_h_0.csv")))
+
+# Satellite L12-5 data
+df_non_gps_h_1 = pd.read_csv(os.path.join(APP_PATH, os.path.join("../data", "non_gps_data_h_1.csv")))
+df_non_gps_m_1 = pd.read_csv(os.path.join(APP_PATH, os.path.join("../data", "non_gps_data_m_1.csv")))
+df_gps_m_1 = pd.read_csv(os.path.join(APP_PATH, os.path.join("../data", "gps_data_m_1.csv")))
+df_gps_h_1 = pd.read_csv(os.path.join(APP_PATH, os.path.join("../data", "gps_data_h_1.csv")))
+
 # Root
 root_layout = html.Div(
     id="root",
     children=[
+        dcc.Store(id="store-placeholder"),
+        dcc.Store(
+            id="store-data",
+            data={
+                "hour_data_0": {
+                    "elevation": [df_non_gps_h_0["elevation"][i] for i in range(60)],
+                    "temperature": [df_non_gps_h_0["temperature"][i] for i in range(60)],
+                    "speed": [df_non_gps_h_0["speed"][i] for i in range(60)],
+                    "latitude": ["{0:09.4f}".format(df_gps_h_0["lat"][i]) for i in range(60)],
+                    "longitude": ["{0:09.4f}".format(df_gps_h_0["lon"][i]) for i in range(60)],
+                    "fuel": [df_non_gps_h_0["fuel"][i] for i in range(60)],
+                    "battery": [df_non_gps_h_0["battery"][i] for i in range(60)],
+                },
+                "minute_data_0": {
+                    "elevation": [df_non_gps_m_0["elevation"][i] for i in range(60)],
+                    "temperature": [df_non_gps_m_0["temperature"][i] for i in range(60)],
+                    "speed": [df_non_gps_m_0["speed"][i] for i in range(60)],
+                    "latitude": ["{0:09.4f}".format(df_gps_m_0["lat"][i]) for i in range(60)],
+                    "longitude": ["{0:09.4f}".format(df_gps_m_0["lon"][i]) for i in range(60)],
+                    "fuel": [df_non_gps_m_0["fuel"][i] for i in range(60)],
+                    "battery": [df_non_gps_m_0["battery"][i] for i in range(60)],
+                },
+                "hour_data_1": {
+                    "elevation": [df_non_gps_h_1["elevation"][i] for i in range(60)],
+                    "temperature": [df_non_gps_h_1["temperature"][i] for i in range(60)],
+                    "speed": [df_non_gps_h_1["speed"][i] for i in range(60)],
+                    "latitude": ["{0:09.4f}".format(df_gps_h_1["lat"][i]) for i in range(60)],
+                    "longitude": ["{0:09.4f}".format(df_gps_h_1["lon"][i]) for i in range(60)],
+                    "fuel": [df_non_gps_h_1["fuel"][i] for i in range(60)],
+                    "battery": [df_non_gps_h_1["battery"][i] for i in range(60)],
+                },
+                "minute_data_1": {
+                    "elevation": [df_non_gps_m_1["elevation"][i] for i in range(60)],
+                    "temperature": [df_non_gps_m_1["temperature"][i] for i in range(60)],
+                    "speed": [df_non_gps_m_1["speed"][i] for i in range(60)],
+                    "latitude": ["{0:09.4f}".format(df_gps_m_1["lat"][i]) for i in range(60)],
+                    "longitude": ["{0:09.4f}".format(df_gps_m_1["lon"][i]) for i in range(60)],
+                    "fuel": [df_non_gps_m_1["fuel"][i] for i in range(60)],
+                    "battery": [df_non_gps_m_1["battery"][i] for i in range(60)],
+                },
+            },
+        ),
         # For the case no components were clicked, we need to know what type of graph to preserve
         dcc.Store(id="store-data-config", data={"info_type": "", "satellite_type": 0}),
         side_panel_layout,
         main_panel_layout,
     ],
 )
+
+
+# Callbacks Data
+
+
+# Add new data every second/minute
+@dash.callback(
+    Output("store-data", "data"),
+    [Input("interval", "n_intervals")],
+    [State("store-data", "data")],
+)
+def update_data(interval, data):
+    new_data = data
+    # Update H45-K1 data when sat==0, update L12-5 data when sat==1
+    for sat in range(2):
+        if sat == 0:
+            gps_minute_file = df_gps_m_0
+            gps_hour_file = df_gps_h_0
+        else:
+            gps_minute_file = df_gps_m_1
+            gps_hour_file = df_gps_h_1
+
+        m_data_key = "minute_data_" + str(sat)
+        h_data_key = "hour_data_" + str(sat)
+
+        new_data[m_data_key]["elevation"].append(data[m_data_key]["elevation"][0])
+        new_data[m_data_key]["elevation"] = new_data[m_data_key]["elevation"][1:61]
+        new_data[m_data_key]["temperature"].append(data[m_data_key]["temperature"][0])
+        new_data[m_data_key]["temperature"] = new_data[m_data_key]["temperature"][1:61]
+        new_data[m_data_key]["speed"].append(data[m_data_key]["speed"][0])
+        new_data[m_data_key]["speed"] = new_data[m_data_key]["speed"][1:61]
+        new_data[m_data_key]["latitude"].append("{0:09.4f}".format(gps_minute_file["lat"][(60 + interval) % 3600]))
+        new_data[m_data_key]["latitude"] = new_data[m_data_key]["latitude"][1:61]
+        new_data[m_data_key]["longitude"].append("{0:09.4f}".format(gps_minute_file["lon"][(60 + interval) % 3600]))
+        new_data[m_data_key]["longitude"] = new_data[m_data_key]["longitude"][1:61]
+
+        new_data[m_data_key]["fuel"].append(data[m_data_key]["fuel"][0])
+        new_data[m_data_key]["fuel"] = new_data[m_data_key]["fuel"][1:61]
+        new_data[m_data_key]["battery"].append(data[m_data_key]["battery"][0])
+        new_data[m_data_key]["battery"] = new_data["minute_data_0"]["battery"][1:61]
+
+        if interval % 60000 == 0:
+            new_data[h_data_key]["elevation"].append(data[h_data_key]["elevation"][0])
+            new_data[h_data_key]["elevation"] = new_data[h_data_key]["elevation"][1:61]
+            new_data[h_data_key]["temperature"].append(data[h_data_key]["temperature"][0])
+            new_data[h_data_key]["temperature"] = new_data[h_data_key]["temperature"][1:61]
+            new_data[h_data_key]["speed"].append(data[h_data_key]["speed"][0])
+            new_data[h_data_key]["speed"] = new_data[h_data_key]["speed"][1:61]
+            new_data[h_data_key]["latitude"].append("{0:09.4f}".format(gps_hour_file["lat"][interval % 60]))
+            new_data[h_data_key]["latitude"] = new_data[h_data_key]["latitude"][1:61]
+            new_data[h_data_key]["longitude"].append("{0:09.4f}".format(gps_hour_file["lon"][interval % 60]))
+            new_data[h_data_key]["longitude"] = new_data[h_data_key]["longitude"][1:61]
+            new_data[h_data_key]["fuel"].append(data[h_data_key]["fuel"][0])
+            new_data[h_data_key]["fuel"] = new_data[h_data_key]["fuel"][1:61]
+            new_data[h_data_key]["battery"].append(data[h_data_key]["battery"][0])
+            new_data[h_data_key]["battery"] = new_data[h_data_key]["battery"]
+
+    return new_data
+
+
+# Callbacks Dropdown
+
+
+@dash.callback(
+    Output("satellite-name", "children"),
+    [Input("satellite-dropdown-component", "value")],
+)
+def update_satellite_name(val):
+    if val == "h45-k1":
+        return "Satellite\nH45-K1"
+    elif val == "l12-5":
+        return "Satellite\nL12-5"
+    else:
+        return ""
 
 
 @dash.callback(
@@ -490,6 +875,94 @@ def update_running_time(n_intervals, switch_toggle):
     # Format the time as HH:MM:SS
     return f"{hours:02}:{minutes:02}:{seconds:02}"
 
+
+@dash.callback(
+    [
+        Output("control-panel-elevation-component", "value"),
+        Output("control-panel-temperature-component", "value"),
+        Output("control-panel-speed-component", "value"),
+        Output("control-panel-fuel-component", "value"),
+        Output("control-panel-battery-component", "value"),
+    ],
+    [Input("interval", "n_intervals"), Input("satellite-dropdown-component", "value")],
+    [State("store-data-config", "data"), State("store-data", "data")],
+)
+def update_non_gps_component(clicks, satellite_type, data_config, data):
+    string_buffer = ""
+    if data_config["satellite_type"] == 0:
+        string_buffer = "_0"
+    if data_config["satellite_type"] == 1:
+        string_buffer = "_1"
+
+    new_data = []
+    components_list = ["elevation", "temperature", "speed", "fuel", "battery"]
+    # Update each graph value
+    for component in components_list:
+        new_data.append(data["minute_data" + string_buffer][component][-1])
+
+    return new_data
+
+
+@dash.callback(
+    [
+        Output("control-panel-latitude-component", "value"),
+        Output("control-panel-longitude-component", "value"),
+    ],
+    [Input("interval", "n_intervals"), Input("satellite-dropdown-component", "value")],
+    [State("store-data-config", "data"), State("store-data", "data")],
+)
+def update_gps_component(clicks, satellite_type, data_config, data):
+    string_buffer = ""
+    if data_config["satellite_type"] == 0:
+        string_buffer = "_0"
+    if data_config["satellite_type"] == 1:
+        string_buffer = "_1"
+
+    new_data = []
+    for component in ["latitude", "longitude"]:
+        val = list(data["minute_data" + string_buffer][component][-1])
+        if val[0] == "-":
+            new_data.append("0" + "".join(val[1::]))
+        else:
+            new_data.append("".join(val))
+    return new_data
+
+
+@dash.callback(
+    [
+        Output("control-panel-latitude-component", "color"),
+        Output("control-panel-longitude-component", "color"),
+    ],
+    [Input("interval", "n_intervals"), Input("satellite-dropdown-component", "value")],
+    [State("store-data-config", "data"), State("store-data", "data")],
+)
+def update_gps_color(clicks, satellite_type, data_config, data):
+    string_buffer = ""
+    if data_config["satellite_type"] == 0:
+        string_buffer = "_0"
+    if data_config["satellite_type"] == 1:
+        string_buffer = "_1"
+
+    new_data = []
+
+    for component in ["latitude", "longitude"]:
+        value = float(data["minute_data" + string_buffer][component][-1])
+        if value < 0:
+            new_data.append("#ff8e77")
+        else:
+            new_data.append("#fec036")
+
+    return new_data
+
+
+@dash.callback(
+    # Output("control-panel-communication-signal", "value"),
+    Output('control-panel-communication-signal', 'color'),
+    [Input("interval", "n_intervals")],
+)
+def update_communication_component(clicks):
+    return '#00FF00' if clicks % 2 == 0 else '#fec036'
+
 @dash.callback(
     Output(component_id='tooltips-toggle', component_property='label'),
     Input(component_id='tooltips-toggle', component_property='on')
@@ -503,6 +976,11 @@ def update_switch_toggle_info(tooltips_toggle):
      Input('tooltips-toggle', 'on')],
 )
 def update_weight_info(interval, switch_toggle_value):
+    global current_weight
+    if current_weight >= 50 or switch_toggle_value is False:
+        current_weight = 0
+    else:
+        current_weight = current_weight + random.uniform(0, 5) if interval % 3 == 0 else current_weight
     return "{:.2f}".format(current_weight)
 
 @dash.callback(
@@ -511,8 +989,13 @@ def update_weight_info(interval, switch_toggle_value):
      Input('tooltips-toggle', 'on')],
 )
 def update_vaibration_component(interval, switch_toggle_value):
-    return "{:.2f}".format(current_vibration)
-
+    if switch_toggle_value and interval % 5 == 0:
+        new_value = current_vibration + random.uniform(-50, 50)
+    elif switch_toggle_value:
+        new_value = current_vibration
+    else:
+        new_value = 0
+    return "{:.2f}".format(new_value)
 
 @dash.callback(
     Output('control-panel-camera', 'color'),
